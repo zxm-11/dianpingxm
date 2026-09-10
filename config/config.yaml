@@ -5,13 +5,13 @@ server:
   write_timeout: 10s
 
 mysql:
-  dsn: root:123456@tcp(127.0.0.1:3306)/hmdp?charset=utf8mb4&parseTime=True&loc=Local
+  dsn: root:126070mxZ@tcp(127.0.0.1:3306)/dianping?charset=utf8mb4&parseTime=True&loc=Local
   max_idle_conns: 10
   max_open_conns: 50
 
 redis:
   addr: 127.0.0.1:6379
-  password: "123456"
+  password: ""
   db: 1
 
 kafka:

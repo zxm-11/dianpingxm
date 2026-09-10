@@ -1,4 +1,4 @@
-﻿package service
+package service
 
 import (
 	"context"
@@ -80,13 +80,21 @@ func (s *BlogService) Like(ctx context.Context, blogID uint64, userID uint64) er
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if !isLiked {
 			res := tx.Model(&model.Blog{}).Where("id = ?", blogID).UpdateColumn("liked", gorm.Expr("liked + 1"))
-			if res.Error != nil { return res.Error }
-			if res.RowsAffected == 0 { return errors.New("博客不存在") }
+			if res.Error != nil {
+				return res.Error
+			}
+			if res.RowsAffected == 0 {
+				return errors.New("博客不存在")
+			}
 			return s.rdb.ZAdd(ctx, key, redis.Z{Score: float64(time.Now().UnixMilli()), Member: member}).Err()
 		}
 		res := tx.Model(&model.Blog{}).Where("id = ?", blogID).UpdateColumn("liked", gorm.Expr("liked - 1"))
-		if res.Error != nil { return res.Error }
-		if res.RowsAffected == 0 { return errors.New("博客不存在") }
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return errors.New("博客不存在")
+		}
 		return s.rdb.ZRem(ctx, key, member).Err()
 	})
 }
@@ -100,19 +108,27 @@ func (s *BlogService) QueryLikes(ctx context.Context, blogID uint64) ([]model.Us
 	ids := make([]uint64, 0, len(members))
 	for _, member := range members {
 		id, err := strconv.ParseUint(member, 10, 64)
-		if err == nil { ids = append(ids, id) }
+		if err == nil {
+			ids = append(ids, id)
+		}
 	}
 	users, err := s.us.UsersByIDs(ctx, ids)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	ordered := make([]model.UserView, 0, len(ids))
 	for _, id := range ids {
-		if user, ok := users[id]; ok { ordered = append(ordered, user) }
+		if user, ok := users[id]; ok {
+			ordered = append(ordered, user)
+		}
 	}
 	return ordered, nil
 }
 
 func (s *BlogService) QueryByUser(ctx context.Context, userID uint64, current int, viewerID uint64) ([]model.Blog, error) {
-	if current < 1 { current = 1 }
+	if current < 1 {
+		current = 1
+	}
 	var blogs []model.Blog
 	if err := s.db.WithContext(ctx).Where("user_id = ?", userID).Order("create_time DESC").Offset((current - 1) * constants.MaxPageSize).Limit(constants.MaxPageSize).Find(&blogs).Error; err != nil {
 		return nil, err
@@ -131,7 +147,9 @@ func (s *BlogService) QueryFeed(ctx context.Context, userID uint64, max int64, o
 	newOffset := int64(1)
 	for i, item := range items {
 		id, err := strconv.ParseUint(fmt.Sprint(item.Member), 10, 64)
-		if err == nil { ids = append(ids, id) }
+		if err == nil {
+			ids = append(ids, id)
+		}
 		score := int64(item.Score)
 		if i == 0 || score < minTime {
 			minTime = score
@@ -141,7 +159,9 @@ func (s *BlogService) QueryFeed(ctx context.Context, userID uint64, max int64, o
 		}
 	}
 	blogs, err := s.blogsByIDs(ctx, ids, userID)
-	if err != nil { return model.ScrollResult{}, err }
+	if err != nil {
+		return model.ScrollResult{}, err
+	}
 	return model.ScrollResult{List: blogs, MinTime: minTime, Offset: newOffset}, nil
 }
 
@@ -162,16 +182,22 @@ func (s *BlogService) enrich(ctx context.Context, blogs []model.Blog, viewerID u
 }
 
 func (s *BlogService) blogsByIDs(ctx context.Context, ids []uint64, viewerID uint64) ([]model.Blog, error) {
-	if len(ids) == 0 { return []model.Blog{}, nil }
+	if len(ids) == 0 {
+		return []model.Blog{}, nil
+	}
 	var blogs []model.Blog
 	if err := s.db.WithContext(ctx).Where("id IN ?", ids).Find(&blogs).Error; err != nil {
 		return nil, err
 	}
 	byID := make(map[uint64]model.Blog, len(blogs))
-	for _, blog := range blogs { byID[blog.ID] = blog }
+	for _, blog := range blogs {
+		byID[blog.ID] = blog
+	}
 	ordered := make([]model.Blog, 0, len(ids))
 	for _, id := range ids {
-		if blog, ok := byID[id]; ok { ordered = append(ordered, blog) }
+		if blog, ok := byID[id]; ok {
+			ordered = append(ordered, blog)
+		}
 	}
 	return s.enrich(ctx, ordered, viewerID)
 }
