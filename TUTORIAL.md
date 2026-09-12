@@ -98,30 +98,51 @@ go version
 $env:Path += ";$env:USERPROFILE\go\bin"
 ```
 
-### MySQL（推荐 Docker）
+### MySQL
+
+本项目实际用的是 **Windows 原生 MySQL 8.0**（装在 `C:\Program Files\MySQL\MySQL Server 8.0`，已注册为 Windows 服务）。
+
+库名必须是 `dianping`，要和 `config/config.yaml` 的 DSN 对齐，先建库：
+
+```sql
+CREATE DATABASE IF NOT EXISTS dianping DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+```
+
+想用 Docker 也可以，但库名和密码要保持一致，否则应用连不上：
 
 ```powershell
-docker run -d --name mysql-hmdp -p 3306:3306 `
-  -e MYSQL_ROOT_PASSWORD=123456 `
-  -e MYSQL_DATABASE=hmdp `
+docker run -d --name mysql-dianping -p 3306:3306 `
+  -e MYSQL_ROOT_PASSWORD=126070mxZ `
+  -e MYSQL_DATABASE=dianping `
   mysql:8.0 --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci
 ```
 
 ### Redis
 
+本项目实际用的是 **Windows 原生 Redis**（`redis-server.exe`，已注册为 Windows 服务，监听 `127.0.0.1:6379`）。
+
+⚠️ 应用连的是 **db 1**（见 `config/config.yaml` 的 `redis.db`），不是默认的 db 0。手动敲 `redis-cli` 时别漏掉 `-n 1`，否则会看到"库存没设进去"的假象。
+
 ```powershell
-docker run -d --name redis-hmdp -p 6379:6379 redis:7-alpine
+docker run -d --name redis-dianping -p 6379:6379 redis:7-alpine
 ```
 
 ### Kafka（可选，秒杀异步下单需要）
 
-```powershell
-docker run -d --name zookeeper -p 2181:2181 zookeeper:3.8
-docker run -d --name kafka-hmdp -p 9092:9092 `
-  -e KAFKA_ZOOKEEPER_CONNECT=host.docker.internal:2181 `
-  -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092 `
-  confluentinc/cp-kafka:7.5
+`config/config.yaml` 配的是 **3 个 broker**：
+
+```yaml
+kafka:
+  brokers:
+    - localhost:9094
+    - localhost:9095
+    - localhost:9096
+  enabled: true
 ```
+
+Kafka 是**可选**的。`app.New()` 只构造 kafka-go 的 Writer/Reader，不建立连接（kafka-go 是懒连接），所以 **Kafka 没起来服务照样能正常启动**，只有秒杀下单的异步链路不可用——消费者会在后台指数退避重试，日志里会出现连接报错。
+
+只跑单节点 broker 的话，把端口对齐成 9094，并且把 `brokers` 删到只剩一条，否则 kafka-go 会一直去重试连不上的 9095 / 9096。完全不用 Kafka 就把 `enabled` 改成 `false`，此时秒杀会走**同步落库**路径（见 `internal/service/voucher_order.go` 的 `writer == nil` 分支）。
 
 ---
 
@@ -185,7 +206,7 @@ server:
   write_timeout: 10s
 
 mysql:
-  dsn: root:123456@tcp(127.0.0.1:3306)/hmdp?charset=utf8mb4&parseTime=True&loc=Local
+  dsn: root:126070mxZ@tcp(127.0.0.1:3306)/dianping?charset=utf8mb4&parseTime=True&loc=Local
   max_idle_conns: 10
   max_open_conns: 50
 
@@ -196,14 +217,16 @@ redis:
 
 kafka:
   brokers:
-    - localhost:9092
+    - localhost:9094
+    - localhost:9095
+    - localhost:9096
   topic: kafka-orders
   group_id: my-kafka-group
-  enabled: false
+  enabled: true
 
 upload:
-  image_dir: "./uploads"
-  public_prefix: "/imgs"
+  image_dir: 'D:\HeiMaDianPing\nginx-1.18.0\html\hmdp\imgs\'
+  public_prefix: /imgs
 
 auth:
   compatible_missing_token: false
@@ -320,7 +343,7 @@ CREATE TABLE IF NOT EXISTS `tb_user` (
 
 ```powershell
 go install -tags 'mysql' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
-migrate -path migrations -database "mysql://root:123456@tcp(127.0.0.1:3306)/hmdp?multiStatements=true" up
+migrate -path migrations -database "mysql://root:126070mxZ@tcp(127.0.0.1:3306)/dianping?multiStatements=true" up
 ```
 
 **为什么不用 GORM AutoMigrate？**
@@ -764,22 +787,37 @@ func main() {
 ## 16. 运行项目
 
 ```powershell
-# 1. 启动依赖
-docker start mysql-hmdp redis-hmdp
+# 0. 进项目目录（go.mod 在 Lifestyle-Platform 子目录，命令都要在这一层执行）
+cd D:\learnproject\Lifestyle-Platform
 
-# 2. 执行数据库迁移
-migrate -path migrations -database "mysql://root:123456@tcp(127.0.0.1:3306)/hmdp?multiStatements=true" up
+# 1. 确认依赖在跑
+#    MySQL → 127.0.0.1:3306（Windows 服务 MySQL80）
+#    Redis → 127.0.0.1:6379（Windows 服务，应用用 db 1）
+#    Kafka → localhost:9094~9096（可选，没起也能启动，见第 2 节）
+netstat -an | Select-String "3306|6379"
 
-# 3. 设置环境变量（可选，覆盖 config.yaml）
-$env:HMDP_MYSQL_DSN="root:123456@tcp(127.0.0.1:3306)/hmdp?charset=utf8mb4&parseTime=True&loc=Local"
+# 2. 执行数据库迁移（migrate 的 DSN 格式和 GORM 的不同，别混用）
+migrate -path migrations -database "mysql://root:126070mxZ@tcp(127.0.0.1:3306)/dianping?multiStatements=true" up
 
-# 4. 运行
+# 3. 灌种子数据（幂等，INSERT IGNORE，可以重复执行）
+mysql --default-character-set=utf8mb4 dianping < seed/seed.sql
+
+# 4. 预热秒杀券 Redis 库存（注意 -n 1，应用连的是 db 1 不是 db 0）
+redis-cli -n 1 SET seckill:stock:10 100
+redis-cli -n 1 SET seckill:stock:11 50
+
+# 5. 设置环境变量（可选，覆盖 config.yaml，注意前缀是 HMDP_）
+$env:HMDP_MYSQL_DSN="root:126070mxZ@tcp(127.0.0.1:3306)/dianping?charset=utf8mb4&parseTime=True&loc=Local"
+
+# 6. 运行
 go run ./cmd/server
 
-# 5. 测试
-curl -X POST "http://localhost:8081/user/code" -d "phone=13800138000"
-curl -X POST "http://localhost:8081/user/login" -d "phone=13800138000&code=123456"
+# 7. 测试
 curl "http://localhost:8081/shop-type/list"
+curl "http://localhost:8081/shop/1"
+curl -X POST "http://localhost:8081/user/code" -d "phone=13800138000"
+# 验证码直接返回在响应 data 里，拿它去登录
+curl -X POST "http://localhost:8081/user/login" -d "phone=13800138000&code=<上一步 data 里的验证码>"
 ```
 
 ---
@@ -874,4 +912,4 @@ graph TD
 
 ---
 
-*教程基于实际项目 `hm-dianping`，当前源码在 `D:\JAVA\hm-dianping`。*
+*教程基于实际项目 `hm-dianping`，当前源码在 `D:\learnproject\Lifestyle-Platform`。*

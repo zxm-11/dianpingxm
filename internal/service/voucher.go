@@ -1,4 +1,4 @@
-﻿package service
+package service
 
 import (
 	"context"
@@ -40,10 +40,16 @@ func (s *VoucherService) AddSeckill(ctx context.Context, voucher *model.Voucher)
 			return err
 		}
 		stock := 0
-		if voucher.Stock != nil { stock = *voucher.Stock }
+		if voucher.Stock != nil {
+			stock = *voucher.Stock
+		}
 		seckill := model.SeckillVoucher{VoucherID: voucher.ID, Stock: stock}
-		if voucher.BeginTime != nil { seckill.BeginTime = *voucher.BeginTime }
-		if voucher.EndTime != nil { seckill.EndTime = *voucher.EndTime }
+		if voucher.BeginTime != nil {
+			seckill.BeginTime = *voucher.BeginTime
+		}
+		if voucher.EndTime != nil {
+			seckill.EndTime = *voucher.EndTime
+		}
 		if err := tx.Create(&seckill).Error; err != nil {
 			return err
 		}

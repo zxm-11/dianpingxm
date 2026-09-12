@@ -1,4 +1,4 @@
-﻿package service
+package service
 
 import (
 	"context"
@@ -54,13 +54,19 @@ func (s *FollowService) Commons(ctx context.Context, userID, otherID uint64) ([]
 	uintIDs := make([]uint64, 0, len(ids))
 	for _, id := range ids {
 		parsed, err := strconv.ParseUint(id, 10, 64)
-		if err == nil { uintIDs = append(uintIDs, parsed) }
+		if err == nil {
+			uintIDs = append(uintIDs, parsed)
+		}
 	}
 	users, err := s.us.UsersByIDs(ctx, uintIDs)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	result := make([]model.UserView, 0, len(users))
 	for _, id := range uintIDs {
-		if u, ok := users[id]; ok { result = append(result, u) }
+		if u, ok := users[id]; ok {
+			result = append(result, u)
+		}
 	}
 	return result, nil
 }

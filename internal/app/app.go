@@ -1,4 +1,4 @@
-﻿package app
+package app
 
 import (
 	"context"
@@ -104,17 +104,27 @@ func New(cfg *config.Config) (*App, error) {
 }
 
 func (a *App) Close() {
-	if a.cancelConsumer != nil { a.cancelConsumer() }
+	if a.cancelConsumer != nil {
+		a.cancelConsumer()
+	}
 	if a.reader != nil {
-		if err := a.reader.Close(); err != nil { log.Printf("close kafka reader: %v", err) }
+		if err := a.reader.Close(); err != nil {
+			log.Printf("close kafka reader: %v", err)
+		}
 	}
 	if a.writer != nil {
-		if err := a.writer.Close(); err != nil { log.Printf("close kafka writer: %v", err) }
+		if err := a.writer.Close(); err != nil {
+			log.Printf("close kafka writer: %v", err)
+		}
 	}
 	if a.rdb != nil {
-		if err := a.rdb.Close(); err != nil { log.Printf("close redis: %v", err) }
+		if err := a.rdb.Close(); err != nil {
+			log.Printf("close redis: %v", err)
+		}
 	}
 	if a.db != nil {
-		if err := a.db.Close(); err != nil { log.Printf("close db: %v", err) }
+		if err := a.db.Close(); err != nil {
+			log.Printf("close db: %v", err)
+		}
 	}
 }
