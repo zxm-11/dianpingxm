@@ -1,6 +1,6 @@
 package script
 
-import _ "embed"
+import _ "embed" //匿名导入 embed 包
 
 //go:embed seckill.lua
 var SeckillLua string

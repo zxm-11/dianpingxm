@@ -1,4 +1,4 @@
-﻿package ctx
+package ctx
 
 import (
 	"errors"
@@ -19,7 +19,7 @@ func CurrentUser(c *gin.Context) (model.UserView, error) {
 	if !ok {
 		return model.UserView{}, errors.New("用户未登录")
 	}
-	user, ok := value.(model.UserView)
+	user, ok := value.(model.UserView) //类型断言 userkey实际上是[map]string
 	if !ok || user.ID == 0 {
 		return model.UserView{}, errors.New("用户未登录")
 	}

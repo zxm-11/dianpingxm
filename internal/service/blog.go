@@ -24,13 +24,15 @@ func NewBlogService(db *gorm.DB, rdb *redis.Client, us *UserService) *BlogServic
 	return &BlogService{db: db, rdb: rdb, us: us}
 }
 
+// 写探店博客
 func (s *BlogService) Save(ctx context.Context, blog *model.Blog, userID uint64) error {
 	blog.UserID = userID
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(blog).Error; err != nil {
 			return err
 		}
-		var follows []model.Follow
+		//feed流 推送给粉丝(推模式(写扩散))
+		var follows []model.Follow //反查出粉丝
 		if err := tx.Where("follow_user_id = ?", userID).Find(&follows).Error; err != nil {
 			return err
 		}
@@ -43,17 +45,24 @@ func (s *BlogService) Save(ctx context.Context, blog *model.Blog, userID uint64)
 	})
 }
 
+// 查询对应页数的热点博客 (按照点赞量从高到底排序)
 func (s *BlogService) QueryHot(ctx context.Context, current int, viewerID uint64) ([]model.Blog, error) {
 	if current < 1 {
 		current = 1
 	}
 	var blogs []model.Blog
-	if err := s.db.WithContext(ctx).Order("liked DESC").Offset((current - 1) * constants.MaxPageSize).Limit(constants.MaxPageSize).Find(&blogs).Error; err != nil {
+	// select * from `tb_blogs` order by liked desc limit 10 offset 10*(current-1) --> (OFFSET = (页码 - 1) × 每页条数)
+	if err := s.db.WithContext(ctx).
+		Order("liked DESC").
+		Offset((current - 1) * constants.MaxPageSize).
+		Limit(constants.MaxPageSize).
+		Find(&blogs).Error; err != nil {
 		return nil, err
 	}
 	return s.enrich(ctx, blogs, viewerID)
 }
 
+// 查看探店博客(通过blog id查看)
 func (s *BlogService) QueryByID(ctx context.Context, id uint64, viewerID uint64) (*model.Blog, error) {
 	var blog model.Blog
 	if err := s.db.WithContext(ctx).First(&blog, id).Error; err != nil {
@@ -66,9 +75,10 @@ func (s *BlogService) QueryByID(ctx context.Context, id uint64, viewerID uint64)
 	if err != nil {
 		return nil, err
 	}
-	return &blogs[0], nil
+	return &blogs[0], nil //对应博客id 只对应一条博客信息
 }
 
+// 探店博客点赞
 func (s *BlogService) Like(ctx context.Context, blogID uint64, userID uint64) error {
 	key := constants.BlogLikedKey + strconv.FormatUint(blogID, 10)
 	member := strconv.FormatUint(userID, 10)
@@ -88,6 +98,7 @@ func (s *BlogService) Like(ctx context.Context, blogID uint64, userID uint64) er
 			}
 			return s.rdb.ZAdd(ctx, key, redis.Z{Score: float64(time.Now().UnixMilli()), Member: member}).Err()
 		}
+		//isliked == true  取消点赞
 		res := tx.Model(&model.Blog{}).Where("id = ?", blogID).UpdateColumn("liked", gorm.Expr("liked - 1"))
 		if res.Error != nil {
 			return res.Error
@@ -99,9 +110,10 @@ func (s *BlogService) Like(ctx context.Context, blogID uint64, userID uint64) er
 	})
 }
 
+// 查看探店博客点赞列表
 func (s *BlogService) QueryLikes(ctx context.Context, blogID uint64) ([]model.UserView, error) {
 	key := constants.BlogLikedKey + strconv.FormatUint(blogID, 10)
-	members, err := s.rdb.ZRange(ctx, key, 0, 4).Result()
+	members, err := s.rdb.ZRange(ctx, key, 0, 4).Result() //查看点赞最早的前四个客户
 	if err != nil || len(members) == 0 {
 		return []model.UserView{}, err
 	}
@@ -112,11 +124,13 @@ func (s *BlogService) QueryLikes(ctx context.Context, blogID uint64) ([]model.Us
 			ids = append(ids, id)
 		}
 	}
+	//批量获取对应用户的视图
 	users, err := s.us.UsersByIDs(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
 	ordered := make([]model.UserView, 0, len(ids))
+	//保证按时间顺序排序(ids里面是存好的)
 	for _, id := range ids {
 		if user, ok := users[id]; ok {
 			ordered = append(ordered, user)
@@ -125,20 +139,27 @@ func (s *BlogService) QueryLikes(ctx context.Context, blogID uint64) ([]model.Us
 	return ordered, nil
 }
 
+// 查询对应用户的博客
 func (s *BlogService) QueryByUser(ctx context.Context, userID uint64, current int, viewerID uint64) ([]model.Blog, error) {
 	if current < 1 {
 		current = 1
 	}
 	var blogs []model.Blog
-	if err := s.db.WithContext(ctx).Where("user_id = ?", userID).Order("create_time DESC").Offset((current - 1) * constants.MaxPageSize).Limit(constants.MaxPageSize).Find(&blogs).Error; err != nil {
+	if err := s.db.WithContext(ctx).
+		Where("user_id = ?", userID).
+		Order("create_time DESC").
+		Offset((current - 1) * constants.MaxPageSize).
+		Limit(constants.MaxPageSize).Find(&blogs).Error; err != nil {
 		return nil, err
 	}
 	return s.enrich(ctx, blogs, viewerID)
 }
 
+// 关注流
 func (s *BlogService) QueryFeed(ctx context.Context, userID uint64, max int64, offset int64) (model.ScrollResult, error) {
 	key := constants.FeedKey + strconv.FormatUint(userID, 10)
-	items, err := s.rdb.ZRevRangeByScoreWithScores(ctx, key, &redis.ZRangeBy{Min: "0", Max: strconv.FormatInt(max, 10), Offset: offset, Count: 2}).Result()
+	//Zset Rev:降序 ByScore:按区间取 WithScores:返回结果带上Score
+	items, err := s.rdb.ZRevRangeByScoreWithScores(ctx, key, &redis.ZRangeBy{Min: "0", Max: strconv.FormatInt(max, 10), Offset: offset, Count: constants.MaxPageSize}).Result()
 	if err != nil || len(items) == 0 {
 		return model.ScrollResult{List: []model.Blog{}, MinTime: 0, Offset: 0}, err
 	}
@@ -151,6 +172,7 @@ func (s *BlogService) QueryFeed(ctx context.Context, userID uint64, max int64, o
 			ids = append(ids, id)
 		}
 		score := int64(item.Score)
+		//offset偏移量:下一个时间戳区间跳过offset条,(跳过‘重复时间已经读取过的’ )
 		if i == 0 || score < minTime {
 			minTime = score
 			newOffset = 1
@@ -165,6 +187,7 @@ func (s *BlogService) QueryFeed(ctx context.Context, userID uint64, max int64, o
 	return model.ScrollResult{List: blogs, MinTime: minTime, Offset: newOffset}, nil
 }
 
+// (逐条)补充作者信息(Name,Icon) && 查看当前用户是否点过赞
 func (s *BlogService) enrich(ctx context.Context, blogs []model.Blog, viewerID uint64) ([]model.Blog, error) {
 	for i := range blogs {
 		view, err := s.us.GetUserView(ctx, blogs[i].UserID)
@@ -181,6 +204,7 @@ func (s *BlogService) enrich(ctx context.Context, blogs []model.Blog, viewerID u
 	return blogs, nil
 }
 
+// 获取对应id的博客
 func (s *BlogService) blogsByIDs(ctx context.Context, ids []uint64, viewerID uint64) ([]model.Blog, error) {
 	if len(ids) == 0 {
 		return []model.Blog{}, nil

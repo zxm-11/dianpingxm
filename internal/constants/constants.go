@@ -13,12 +13,16 @@ const (
 	FollowKey     = "follows:"
 	FeedKey       = "feed:"
 	UserNickPrefx = "user_"
+	ShopGeoKey    = "shop:geo:" // 店铺地理坐标(按类型分桶)
+	SignKey       = "sign:"     // 用户签到位图
 )
 
 const (
 	DefaultPageSize = 5
 	MaxPageSize     = 10
 	CountBits       = 32
+	// ShopGeoRadius 附近商户默认搜索半径，单位：米
+	ShopGeoRadius = 5000.0
 )
 
 const BeginTimestamp int64 = 1767225600

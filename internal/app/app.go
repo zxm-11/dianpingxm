@@ -27,12 +27,13 @@ type App struct {
 	cancelConsumer context.CancelFunc
 }
 
+// 组装整个应用 (创建并组装各个依赖 ,依赖注入)
 func New(cfg *config.Config) (*App, error) {
-	gin.SetMode(cfg.Server.Mode)
+	gin.SetMode(cfg.Server.Mode) //设置Gin运行模式:debug模式
 
 	// === 1. GORM ===
 	gormDB, err := gorm.Open(mysql.Open(cfg.MySQL.DSN), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Warn),
+		Logger: logger.Default.LogMode(logger.Info),
 	})
 	if err != nil {
 		return nil, err
@@ -64,7 +65,7 @@ func New(cfg *config.Config) (*App, error) {
 		writer = &kafka.Writer{
 			Addr:     kafka.TCP(cfg.Kafka.Brokers...),
 			Topic:    cfg.Kafka.Topic,
-			Balancer: &kafka.LeastBytes{},
+			Balancer: &kafka.Hash{}, //Hash 按 msg.Key 的内容挑分区，同一 userID 必落同一分区
 		}
 		reader = kafka.NewReader(kafka.ReaderConfig{
 			Brokers: cfg.Kafka.Brokers,
@@ -74,7 +75,7 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	// === 4. Service 层（独立构造，无 Container） ===
-	userSvc := service.NewUserService(gormDB, rdb)
+	userSvc := service.NewUserService(gormDB, rdb) //在服务层new
 	shopSvc := service.NewShopService(gormDB, rdb)
 	shopTypeSvc := service.NewShopTypeService(gormDB, rdb)
 	followSvc := service.NewFollowService(gormDB, rdb, userSvc)
@@ -94,7 +95,7 @@ func New(cfg *config.Config) (*App, error) {
 	engine := router.New(cfg, rdb, userSvc, shopSvc, shopTypeSvc, blogSvc, followSvc, voucherSvc, voucherOrderSvc, uploadSvc)
 
 	return &App{
-		Router:         engine,
+		Router:         engine, //字段大写-对外可见
 		db:             db,
 		rdb:            rdb,
 		writer:         writer,

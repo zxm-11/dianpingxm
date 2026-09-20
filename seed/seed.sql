@@ -9,17 +9,20 @@
 -- ============================================================
 USE dianping;
 -- 1. 店铺类型
+-- 注意：前端 index.html 写法是 :src="'/imgs/' + t.icon"，
+-- 所以这里必须存 /types/xxx.png（不带 /imgs），否则会变成 /imgs//imgs/... 导致 404。
+-- 图标文件位于前端 imgs/types/ 目录。
 INSERT IGNORE INTO `tb_shop_type` (`id`, `name`, `icon`, `sort`) VALUES
-(1,  '美食',     '/imgs/icons/food.png',   1),
-(2,  'KTV',      '/imgs/icons/ktv.png',    2),
-(3,  '酒吧',     '/imgs/icons/bar.png',    3),
-(4,  '健身',     '/imgs/icons/gym.png',    4),
-(5,  '美容美发', '/imgs/icons/beauty.png', 5),
-(6,  '足疗按摩', '/imgs/icons/massage.png', 6),
-(7,  '休闲娱乐', '/imgs/icons/fun.png',    7),
-(8,  '丽人',     '/imgs/icons/liren.png',  8),
-(9,  '宠物',     '/imgs/icons/pet.png',    9),
-(10, '运动健身', '/imgs/icons/sport.png',  10);
+(1,  '美食',     '/types/ms.png',   1),
+(2,  'KTV',      '/types/KTV.png',  2),
+(3,  '酒吧',     '/types/jiuba.png', 3),
+(4,  '健身',     '/types/jsyd.png', 4),
+(5,  '美容美发', '/types/lrmf.png', 5),
+(6,  '足疗按摩', '/types/amzl.png', 6),
+(7,  '休闲娱乐', '/types/qzyl.png', 7),
+(8,  '丽人',     '/types/mjmj.png', 8),
+(9,  '宠物',     '/types/hpg.png',  9),
+(10, '运动健身', '/types/jsyd.png', 10);
 
 -- 2. 店铺（上海陆家嘴 / 人民广场 / 徐家汇附近坐标）
 INSERT IGNORE INTO `tb_shop`

@@ -1,4 +1,4 @@
-﻿package handler
+package handler
 
 import (
 	"time"
@@ -13,10 +13,19 @@ import (
 func HandleBlogSave(svc *service.BlogService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, err := ctx.CurrentUser(c)
-		if err != nil { writeFail(c, err); return }
+		if err != nil {
+			writeFail(c, err)
+			return
+		}
 		var blog model.Blog
-		if err := c.ShouldBindJSON(&blog); err != nil { writeFail(c, err); return }
-		if err := svc.Save(c.Request.Context(), &blog, user.ID); err != nil { writeFail(c, err); return }
+		if err := c.ShouldBindJSON(&blog); err != nil {
+			writeFail(c, err)
+			return
+		}
+		if err := svc.Save(c.Request.Context(), &blog, user.ID); err != nil {
+			writeFail(c, err)
+			return
+		}
 		writeOK(c, blog.ID)
 	}
 }
@@ -24,10 +33,19 @@ func HandleBlogSave(svc *service.BlogService) gin.HandlerFunc {
 func HandleBlogLike(svc *service.BlogService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, err := ctx.CurrentUser(c)
-		if err != nil { writeFail(c, err); return }
+		if err != nil {
+			writeFail(c, err)
+			return
+		}
 		id, err := pathUint(c, "id")
-		if err != nil { writeFail(c, err); return }
-		if err := svc.Like(c.Request.Context(), id, user.ID); err != nil { writeFail(c, err); return }
+		if err != nil {
+			writeFail(c, err)
+			return
+		}
+		if err := svc.Like(c.Request.Context(), id, user.ID); err != nil {
+			writeFail(c, err)
+			return
+		}
 		writeOK(c, nil)
 	}
 }
@@ -35,9 +53,15 @@ func HandleBlogLike(svc *service.BlogService) gin.HandlerFunc {
 func HandleBlogOfMe(svc *service.BlogService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, err := ctx.CurrentUser(c)
-		if err != nil { writeFail(c, err); return }
+		if err != nil {
+			writeFail(c, err)
+			return
+		}
 		blogs, err := svc.QueryByUser(c.Request.Context(), user.ID, queryInt(c, "current", 1), user.ID)
-		if err != nil { writeFail(c, err); return }
+		if err != nil {
+			writeFail(c, err)
+			return
+		}
 		writeOK(c, blogs)
 	}
 }
@@ -45,8 +69,11 @@ func HandleBlogOfMe(svc *service.BlogService) gin.HandlerFunc {
 func HandleBlogHot(svc *service.BlogService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		viewer := viewerID(c)
-		blogs, err := svc.QueryHot(c.Request.Context(), queryInt(c, "current", 1), viewer)
-		if err != nil { writeFail(c, err); return }
+		blogs, err := svc.QueryHot(c.Request.Context(), queryInt(c, "current", 1), viewer) //query是获取当前页码
+		if err != nil {
+			writeFail(c, err)
+			return
+		}
 		writeOK(c, blogs)
 	}
 }
@@ -54,9 +81,15 @@ func HandleBlogHot(svc *service.BlogService) gin.HandlerFunc {
 func HandleBlogGet(svc *service.BlogService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, err := pathUint(c, "id")
-		if err != nil { writeFail(c, err); return }
+		if err != nil {
+			writeFail(c, err)
+			return
+		}
 		blog, err := svc.QueryByID(c.Request.Context(), id, viewerID(c))
-		if err != nil { writeFail(c, err); return }
+		if err != nil {
+			writeFail(c, err)
+			return
+		}
 		writeOK(c, blog)
 	}
 }
@@ -64,9 +97,15 @@ func HandleBlogGet(svc *service.BlogService) gin.HandlerFunc {
 func HandleBlogLikes(svc *service.BlogService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, err := pathUint(c, "id")
-		if err != nil { writeFail(c, err); return }
+		if err != nil {
+			writeFail(c, err)
+			return
+		}
 		users, err := svc.QueryLikes(c.Request.Context(), id)
-		if err != nil { writeFail(c, err); return }
+		if err != nil {
+			writeFail(c, err)
+			return
+		}
 		writeOK(c, users)
 	}
 }
@@ -74,9 +113,15 @@ func HandleBlogLikes(svc *service.BlogService) gin.HandlerFunc {
 func HandleBlogOfUser(svc *service.BlogService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, err := queryUint(c, "id")
-		if err != nil { writeFail(c, err); return }
+		if err != nil {
+			writeFail(c, err)
+			return
+		}
 		blogs, err := svc.QueryByUser(c.Request.Context(), id, queryInt(c, "current", 1), viewerID(c))
-		if err != nil { writeFail(c, err); return }
+		if err != nil {
+			writeFail(c, err)
+			return
+		}
 		writeOK(c, blogs)
 	}
 }
@@ -84,13 +129,25 @@ func HandleBlogOfUser(svc *service.BlogService) gin.HandlerFunc {
 func HandleBlogOfFollow(svc *service.BlogService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, err := ctx.CurrentUser(c)
-		if err != nil { writeFail(c, err); return }
+		if err != nil {
+			writeFail(c, err)
+			return
+		}
+		//获取指定时间戳(默认取现在)
 		lastID := int64(time.Now().UnixMilli())
-		if v := c.Query("lastId"); v != "" { parseSscanf(v, &lastID) }
+		if v := c.Query("lastId"); v != "" {
+			parseSscanf(v, &lastID)
+		}
+		//获取当前偏移量
 		offset := int64(0)
-		if v := c.Query("offset"); v != "" { parseSscanf(v, &offset) }
+		if v := c.Query("offset"); v != "" {
+			parseSscanf(v, &offset)
+		}
 		result, err := svc.QueryFeed(c.Request.Context(), user.ID, lastID, offset)
-		if err != nil { writeFail(c, err); return }
+		if err != nil {
+			writeFail(c, err)
+			return
+		}
 		writeOK(c, result)
 	}
 }

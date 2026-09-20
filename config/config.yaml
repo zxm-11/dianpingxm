@@ -17,15 +17,17 @@ redis:
 kafka:
   brokers:
     - localhost:9094
-    - localhost:9095
-    - localhost:9096
+   # - localhost:9095
+   # - localhost:9096
   topic: kafka-orders
   group_id: my-kafka-group
+  # 本地未启动 Kafka 时关闭：秒杀将走同步落库路径，功能完整
   enabled: true
 
 upload:
-  image_dir: 'D:\HeiMaDianPing\nginx-1.18.0\html\hmdp\imgs\'
-  public_prefix: /imgs
+  # 必须与实际运行的 nginx 静态目录一致：D:\nginx_dp\nginx-1.18.0\html\hmdp
+  image_dir: 'D:\nginx_dp\nginx-1.18.0\html\hmdp\imgs\'
+  public_prefix: /imgs   #URL 前缀
 
 auth:
   compatible_missing_token: false

@@ -51,13 +51,15 @@ type AuthConfig struct {
 	CompatibleMissingToken bool `mapstructure:"compatible_missing_token"`
 }
 
+// 加载配置
 func Load(path string) (*Config, error) {
 	v := viper.New()
 	v.SetConfigFile(path)
-	v.SetEnvPrefix("HMDP")
-	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	v.AutomaticEnv()
+	v.SetEnvPrefix("HMDP")                             //环境变量加前缀 HMDP_
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_")) //把 key 里的 . 换成 _
+	v.AutomaticEnv()                                   //每次 Get 都自动去查环境变量
 
+	//提供兜底默认值
 	v.SetDefault("server.port", 8080)
 	v.SetDefault("server.mode", "debug")
 	v.SetDefault("server.read_timeout", "10s")
@@ -89,7 +91,7 @@ func Load(path string) (*Config, error) {
 		"upload.public_prefix",
 		"auth.compatible_missing_token",
 	} {
-		_ = v.BindEnv(key)
+		_ = v.BindEnv(key) //逐个(显式把) key 绑定到环境变量
 	}
 
 	if err := v.ReadInConfig(); err != nil {
